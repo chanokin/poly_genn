@@ -130,3 +130,7 @@ dmypy.json
 
 **/*png
 **/LPW/*
+**/*_CODE/
+**/*.avi
+**/*.a
+**/*.zip
