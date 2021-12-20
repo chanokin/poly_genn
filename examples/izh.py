@@ -59,7 +59,7 @@ nrn_init = {"V": 0.0, "RefracTime": 0.0}
 
 stdp_params = {
     "tauPlus": 20, "tauMinus": 20, "aPlus": 0.1,
-    "aMinus": 0.12,  "wMin": 0.0, "wMax": 1./5.
+    "aMinus": 0.12,  "wMin": 0.0, "wMax": 1./3.
 }
 # --------------------------------------------------------------------------- #
 # --------------------------------------------------------------------------- #
@@ -104,29 +104,29 @@ in2inh.set_sparse_connections(np.arange(n_inh) + n_exc, np.arange(n_inh))
 net_conns = {}
 if do_all_conns:
     for conn_name in conn_pairs:
-        s, t = conn_name.split('2')
+        if '_to_' not in conn_name:
+            continue
+
+        s, t = conn_name.split('_to_')
         source = exc_pop if s == 'e' else inh_pop
         target = exc_pop if t == 'e' else inh_pop
         conn_g_init = exc_synapse_init if s == 'e' else inh_synapse_init
         synapse_type = stdp_synapse if s == 'e' and t == 'e' else 'StaticPulse'
         synapse_params = stdp_params if s == 'e' and t == 'e' else {}
         for delay in conn_pairs[conn_name]:
-            synapse_name = f"{s}2{t}_d{delay}"
+            synapse_name = f"{s}_to_{t}_d{delay}"
             net_conns[synapse_name] =  model.add_synapse_population(
                 synapse_name, "SPARSE_INDIVIDUALG", delay,
                 source, target,
                 synapse_type, synapse_params, conn_g_init, {}, {},
                 "DeltaCurr", {}, {},
             )
+            pre_indices, post_indices = conn_pairs[conn_name][delay]
             net_conns[synapse_name].set_sparse_connections(
-                                        *conn_pairs[conn_name][delay])
-
-
-
-
+                                        pre_indices, post_indices)
 
 # Build and load model
-model.build()
+model.build(force_rebuild=True)
 model.load(num_recording_timesteps=sim_steps)
 
 # Simulate model

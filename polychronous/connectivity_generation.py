@@ -78,10 +78,21 @@ def generate_pairs_and_delays(conn_prob:float, n_exc:int, n_inh:int,
                     0, total-1, size=(n_incoming, total))
 
     conn_dict = {
-        'e2e': generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay),
-        'e2i': generate_exc_to_inh(conn_pairs, n_exc),
-        'i2e': generate_inh_to_exc(conn_pairs, n_exc),
-        'i2i': generate_inh_to_inh(conn_pairs, n_exc),
+        'original_pairs': conn_pairs,
+        'e_to_e': generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay),
+        'e_to_i': generate_exc_to_inh(conn_pairs, n_exc),
+        'i_to_e': generate_inh_to_exc(conn_pairs, n_exc),
+        'i_to_i': generate_inh_to_inh(conn_pairs, n_exc),
     }
-
+    # import matplotlib.pyplot as plt
+    # k = 'e_to_e'
+    # for d in conn_dict[k]:
+    #     fig, ax = plt.subplots(2, 1, figsize=(5, 7))
+    #     ax[0].hist(conn_dict[k][d][0])
+    #     ax[0].set_title(f"pres for {k} delay {d}")
+    #     ax[1].hist(conn_dict[k][d][1])
+    #     ax[1].set_title(f"posts for {k} delay {d}")
+    # plt.show()
+    # import sys
+    # sys.exit(0)
     return conn_dict
