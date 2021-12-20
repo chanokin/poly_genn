@@ -6,19 +6,20 @@ from pathlib import Path
 
 this_filename = Path(__file__).resolve().stem
 
-sim_time = 10.
+sim_time = 15.
 dt = 0.1 # ms
 sim_steps = int(sim_time / dt)
-delays = np.array([1, 5, 7], dtype='int')*(1/dt)
+delay_steps = np.array([1, 5, 7], dtype='int') * (1 / dt)
 synapse_init = {
     "g": 0.34,
-    "d": delays,
+    "d": delay_steps,
 }
 # at least one ms greater!
 max_delay_slots = int(8 / dt)
 
 # LIF neuron parameters
-lif_params = {"C": 0.1, "TauM": 20.0, "Vrest": 0.0, "Vreset": 0.0,
+lif_params = {"C": 0.1,
+              "TauM": 20.0, "Vrest": 0.0, "Vreset": 0.0,
               "Vthresh": 1.0, "Ioffset": 0.0, "TauRefrac": 1.0}
 # LIF neuron initial state
 lif_init = {"V": 0.0, "RefracTime": 0.0}
@@ -29,7 +30,10 @@ spike_times = np.array([
     # 1, 1, 1
     7, 3, 1
 ])
-stim_ini = {"startSpike": [0, 1, 2], "endSpike": [1, 2, 3]}
+stim_ini = {
+    "startSpike": [0, 1, 2],
+    "endSpike": [1, 2, 3]
+}
 
 
 # Create model using single-precion and 1ms timesteps
@@ -44,14 +48,23 @@ stim.spike_recording_enabled = True
 output = model.add_neuron_population("target", 1, "LIF", lif_params, lif_init)
 output.spike_recording_enabled = True
 
-synapse = model.add_synapse_population(
-    "PreStimToPop", "DENSE_INDIVIDUALG", 1,
-    stim, output,
-    "StaticPulseDendriticDelay", {}, synapse_init, {}, {},
-    "DeltaCurr", {}, {},
-)
-# Set max dendritic delay and span type
-synapse.pop.set_max_dendritic_delay_timesteps(max_delay_slots)
+synapses = {}
+for i, d in enumerate(synapse_init['d']):
+    d = int(d)
+    synapses[d] = model.add_synapse_population(
+        f"PreStimToPop_{d}",
+        "SPARSE_INDIVIDUALG",
+        d,
+        stim, output,
+        "StaticPulse", {},
+        {'g': synapse_init['g']}, {}, {},
+        "DeltaCurr", {}, {},
+    )
+    synapses[d].set_sparse_connections(np.array([i]),
+                                       np.array([0]))
+
+# # Set max dendritic delay and span type
+# synapse.pop.set_max_dendritic_delay_timesteps(max_delay_slots)
 
 # Build and load model
 model.build()
