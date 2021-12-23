@@ -6,9 +6,11 @@ from pathlib import Path
 from pygenn import genn_wrapper
 from pygenn import genn_model
 
-from polychronous.stdp_synapse import stdp_synapse
+from polychronous.stdp_pair_synapse import stdp_pair_synapse as stdp_synapse
 
 this_filename = Path(__file__).resolve().stem
+
+dt = 1.0
 
 # Model parameters
 NUM_NEURONS = 14
@@ -26,8 +28,10 @@ lif_params = {"C": 1.0, "TauM": 20.0, "Vrest": -70.0, "Vreset": -70.0,
 lif_init = {"V": -70.0, "RefracTime": 0.0}
  
 # STDP parameters
-stdp_params =  {"tauPlus": 16.7, "tauMinus": 33.7, "aPlus": 0.005,
-                "aMinus": 0.005,  "wMin": 0.0, "wMax": 1.0}
+w_max = 100.
+w_init = w_max * 0.5
+stdp_params =  {"tauPlus": 20, "tauMinus": 20, "aPlus": 0.1,
+                "aMinus": 0.12,  "wMin": -w_max, "wMax": w_max}
 
 # Initial state for spike sources - each one emits NUM_SPIKES spikes
 stim_init = {"startSpike": np.arange(0, NUM_NEURONS * NUM_SPIKES, NUM_SPIKES, dtype=int),
@@ -38,12 +42,13 @@ pre_phase = [START_TIME + d + 1.0 if d > 0 else START_TIME + 1.0 for d in DELTA_
 post_phase = [START_TIME if d > 0 else START_TIME - d for d in DELTA_T]
 pre_stim_spike_times = np.concatenate([p + np.arange(0, TIME_BETWEEN_PAIRS * NUM_SPIKES, TIME_BETWEEN_PAIRS) 
                                        for p in pre_phase])
-post_stim_spike_times = np.concatenate([p + np.arange(0, TIME_BETWEEN_PAIRS * NUM_SPIKES, TIME_BETWEEN_PAIRS) 
+post_stim_spike_times = np.concatenate([p + np.arange(0, TIME_BETWEEN_PAIRS * NUM_SPIKES, TIME_BETWEEN_PAIRS) - dt
                                        for p in post_phase])
+
 
 # Create model using single-precion and 1ms timesteps
 model = genn_model.GeNNModel("float", this_filename)
-model.dT = 1.0
+model.dT = dt
 
 # Add a neuron population and two spike sources to provide pre and postsynaptic stimuli
 neuron_pop = model.add_neuron_population("Pop", NUM_NEURONS, "LIF", lif_params, lif_init)
@@ -57,15 +62,17 @@ post_stim_pop.set_extra_global_param("spikeTimes", post_stim_spike_times)
 # Add STDP connection between presynaptic spike source and neurons
 # Uses build in one-to-one connectivity and initialises all weights to 0.5 (midway between wMin and wMax)
 pre_stim_to_pop = model.add_synapse_population(
-    "PreStimToPop", "SPARSE_INDIVIDUALG", genn_wrapper.NO_DELAY,
+    "PreStimToPop", "SPARSE_INDIVIDUALG",
+    genn_wrapper.NO_DELAY,
     pre_stim_pop, neuron_pop,
-    stdp_synapse, stdp_params, {"g": 0.5}, {}, {},
+    stdp_synapse, stdp_params, {"g": 0}, {}, {},
     "DeltaCurr", {}, {},
     genn_model.init_connectivity("OneToOne", {}))
 
 # Add static connection between postsynaptic spike source and neurons
 # Uses built in one-to-one connectivity and initialises all weights to large value to cause immediate spikes
-model.add_synapse_population("PostStimToPop", "SPARSE_GLOBALG", genn_wrapper.NO_DELAY,
+model.add_synapse_population("PostStimToPop", "SPARSE_GLOBALG",
+    genn_wrapper.NO_DELAY,
     post_stim_pop, neuron_pop,
     "StaticPulse", {}, {"g": 8.0}, {}, {},
     "ExpCurr", {"tau": 5.0}, {},
@@ -86,7 +93,8 @@ pre_stim_to_pop.pull_connectivity_from_device()
 weight = pre_stim_to_pop.get_var_values("g")
 
 # Scale weights relative to initial value
-weight = (weight - 0.5) / 0.5
+# weight = (weight - w_init) / w_init
+weight = weight / np.max(weight)
 
 # Create plot
 figure, axis = plt.subplots()
@@ -97,6 +105,9 @@ axis.axvline(0.0, color="black")
 
 # Plot voltages
 axis.plot(DELTA_T, weight)
-
+axis.set_xlabel(r"$\Delta$t (pre - post) [ms]", fontsize='large')
+axis.set_ylabel(r"$\Delta$w %", fontsize='large')
+axis.grid()
+plt.savefig("STDP_curve.png", dpi=150)
 # Show plot
 plt.show()

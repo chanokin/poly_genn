@@ -28,7 +28,7 @@ lif_init = {"V": 0.0, "RefracTime": 0.0}
 # stim_ini = {"startSpike": [0, 1, 2], "endSpike": [1, 2, 3]}
 spike_times = np.array([
     # 1, 1, 1
-    7, 3, 1
+    7, 3, 2
 ])
 stim_ini = {
     "startSpike": [0, 1, 2],
@@ -88,15 +88,20 @@ print(stim_spikes)
 print(output_spikes)
 fig, ax = plt.subplots(1, 1)
 for t, nid in zip(*stim_spikes):
-    plt.axvline(t/dt, color='tab:green')
+    plt.axvline(t, color='tab:green')
 
 for t, nid in zip(*output_spikes):
-    plt.axvline(t/dt, color='tab:blue')
+    plt.axvline(t, color='tab:blue')
 
-ax.plot(v)
+ax.plot(np.arange(len(v)) * dt, v)
 
-ax.set_xlim(0, sim_steps)
+# xticks = ax.get_xticks()
+# ax.set_xticklabels(xticks*dt)
+# ax.set_xlim(0, sim_steps)
+ax.set_xlabel('Time [ms]')
+ax.set_ylabel('Post neuron membrane voltage [mV]')
 # ax.set_ylim(-0.5, 2.5)
 plt.grid()
+plt.savefig("not-correct-delays.png")
 plt.show()
 

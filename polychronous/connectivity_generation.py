@@ -74,15 +74,23 @@ def generate_pairs_and_delays(conn_prob:float, n_exc:int, n_inh:int,
 
     # each number here is a pre-synaptic neuron id, each column represents
     # a post-synaptic neuron (either exc or inh) NOTE: max is inclusive
-    conn_pairs = np.random.random_integers(
-                    0, total-1, size=(n_incoming, total))
+    conn_pairs = np.empty((n_incoming, total), dtype='int')
+    all_ids = np.arange(total)
+    for post in range(total):
+        conn_pairs[:, post] = np.random.choice(
+                                        all_ids, size=n_incoming, replace=False)
+        whr = np.where(conn_pairs[:, post] == post)[0]
+        if len(whr):
+            remaining = np.setdiff1d(all_ids, conn_pairs[:, post])
+            conn_pairs[whr, post] = np.random.choice(
+                                        remaining, size=len(whr), replace=False)
 
     conn_dict = {
         'original_pairs': conn_pairs,
         'e_to_e': generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay),
         'e_to_i': generate_exc_to_inh(conn_pairs, n_exc),
         'i_to_e': generate_inh_to_exc(conn_pairs, n_exc),
-        'i_to_i': generate_inh_to_inh(conn_pairs, n_exc),
+        # 'i_to_i': generate_inh_to_inh(conn_pairs, n_exc),
     }
     # import matplotlib.pyplot as plt
     # k = 'e_to_e'

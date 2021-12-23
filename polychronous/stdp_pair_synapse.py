@@ -1,13 +1,10 @@
 from pygenn import (genn_wrapper, genn_model)
 
 # Additive STDP model with nearest neighbour spike pairing
-stdp_synapse = genn_model.create_custom_weight_update_class(
+stdp_pair_synapse = genn_model.create_custom_weight_update_class(
     "hebbian_stdp",
     param_names=["tauPlus", "tauMinus", "aPlus", "aMinus", "wMin", "wMax"],
-    var_name_types=[
-        ("g", "scalar"), # weight
-        # ("dg", "scalar"), # weight derivative
-    ],
+    var_name_types=[("g", "scalar")],
     # Code that gets called whenever a presynaptic spike arrives at the synapse
     sim_code=
     """

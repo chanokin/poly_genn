@@ -14,7 +14,7 @@ poisson_params = {
     'dt': dt
 }
 scale = 1000.0
-seconds = 10.0
+seconds = 5.0
 rates = np.array([70.0, 1.0, 30.0, 200.0])
 # rates = (np.random.random((10, 20)) / scale).flatten()
 poisson_init = {
