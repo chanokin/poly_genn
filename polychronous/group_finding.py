@@ -65,7 +65,7 @@ def find_groups_by_weights(experiment_filename, threshold, start_time):
     exc_spikes = h5_file[os.path.join("exc", "spikes")]
     start_idx, end_idx = find_limit_indices(exc_spikes, start_time, sim_time,
                                             reverse=reverse_search)
-    spikes_to_analye = exc_spikes[:, start_idx:end_idx]
+    spikes_to_analyse = exc_spikes[:, start_idx:end_idx]
     groups = {}
 
     return groups
