@@ -1,14 +1,16 @@
 import numpy as np
+import h5py
+import os
 from matplotlib import pyplot as plt
 from polychronous.plotting import (
     plot_spikes, plot_weight_histograms, plot_rates
 )
-from polychronous.find_groups import find_groups
+from polychronous.group_finding import find_groups_by_weights
 
-filename = 'izh_polychronous_experiment.npz'
-
-data =  np.load(filename, mmap_mode=True, allow_pickle=True)
 sec_to_ms = 1000.
+filename = 'izh_polychronous_experiment.npz'
+filename = 'experiment_izh_patterns_28-12-2021__10-13.npz'
+data =  np.load(filename, mmap_mode=True, allow_pickle=True)
 
 dt = data['dt']
 sim_time = data['sim_time']
@@ -17,33 +19,38 @@ analysis_start = sim_time - analysis_length #200 * 4
 n_exc = data['n_exc']
 n_inh = data['n_inh']
 max_weight = data['max_weight']
-stim_spikes = data['stim_spikes']
-pat_spikes = data['pat_spikes']
-exc_spikes = data['exc_spikes']
-inh_spikes = data['inh_spikes']
 initial_weights = data['initial_weights'].item()
 final_weights = data['final_weights'].item()
 
-plot_spikes(None, exc_spikes, inh_spikes,
-            n_exc, dt, 0, analysis_length, analysis_length)
-plt.savefig("start_spikes.png", dpi=150)
+spikes_fname = data['spikes_filename'].item()
+spikes_file = h5py.File(spikes_fname, 'r')
+stim_spikes = spikes_file[os.path.join("input", "spikes")]
+pat_spikes = spikes_file[os.path.join("pattern", "spikes")]
+exc_spikes = spikes_file[os.path.join("exc", "spikes")]
+inh_spikes = spikes_file[os.path.join("inh", "spikes")]
+n_stim_spikes = stim_spikes.shape
 
-mid_start = 1000 * 1000
-plot_spikes(None, exc_spikes, inh_spikes,
-            n_exc, dt, mid_start, mid_start + analysis_length, analysis_length)
-plt.savefig("mid_spikes.png", dpi=150)
+# plot_spikes(None, exc_spikes, inh_spikes,
+#             n_exc, dt, sim_time, 0, analysis_length, analysis_length)
+# plt.savefig("start_spikes.png", dpi=150)
+#
+# mid_start = 1000 * 1000
+# plot_spikes(None, exc_spikes, inh_spikes,
+#             n_exc, dt, sim_time, mid_start, mid_start + analysis_length, analysis_length)
+# plt.savefig("mid_spikes.png", dpi=150)
+#
+#
+# plot_spikes(None, exc_spikes, inh_spikes,
+#             n_exc, dt, sim_time, analysis_start, analysis_start+analysis_length,
+#             analysis_length)
+# plt.savefig("end_spikes.png", dpi=150)
 
+groups_by_weight = find_groups_by_weights(filename, max_weight * 0.9)
 
-plot_spikes(None, exc_spikes, inh_spikes,
-            n_exc, dt, analysis_start, analysis_start+analysis_length, analysis_length)
-plt.savefig("end_spikes.png", dpi=150)
-
-# plot_weight_histograms(initial_weights, final_weights)
-# plt.savefig("weight_histograms.png", dpi=150)
-
-# plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time)
-# plt.savefig("rates.png", dpi=150)
+plot_weight_histograms(initial_weights, final_weights)
+plt.savefig("weight_histograms.png", dpi=150)
 
 plt.show()
 
-groups = find_groups(filename, max_weight * 0.9, analysis_start)
+print("end of analysis")
+# groups = find_groups(filename, max_weight * 0.9, analysis_start)

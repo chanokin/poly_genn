@@ -4,13 +4,13 @@ from pygenn import genn_wrapper
 from pygenn import genn_model
 from pathlib import Path
 from polychronous.poisson_source import poisson_input_model
-from polychronous.connectivity_generation import generate_pairs_and_delays
+from polychronous.connectivity import generate_pairs_and_delays
 from polychronous.stdp_all_synapse import stdp_additive_all_model as stdp_synapse
 # from polychronous.stdp_synapse import stdp_synapse
 from polychronous.plotting import (
     plot_spikes, plot_weight_histograms, plot_rates
 )
-from polychronous.find_groups import find_groups
+from polychronous.group_finding import find_groups
 
 def append_spikes(spikes, recorded):
     if spikes is None:

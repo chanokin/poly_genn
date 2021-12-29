@@ -1,21 +1,32 @@
 import numpy as np
+from polychronous.constants import POST, PRE
+
 
 def generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay):
+    """:param conn_pairs: a matrix containing pre-synaptic ids, each column
+                          represents a post-synaptic neuron"""
     ### Excitatory to Excitatory
-    delayed_pairs = np.where(conn_pairs[:, :n_exc] < n_exc)
+    delayed_pair_indices = np.where(conn_pairs[:, :n_exc] < n_exc)
+
+    n_exc_to_exc = len(delayed_pair_indices[0])
+    # generate as many random delays as exc-to-exc connections found
     # max is inclusive here
-    delays = np.random.random_integers(min_delay, max_delay, len(delayed_pairs[0]))
+    delays = np.random.random_integers(min_delay, max_delay, n_exc_to_exc)
 
     # we have to use homogeneous delays in GeNN so we sort by delay to generate
     # one 'projection' for each delay 'slot'
     delayed_conns = {}
     for d in range(min_delay, max_delay+1):
         pair_ids_for_delay = np.where(delays == d)[0]
-        incoming_ids = conn_pairs[delayed_pairs[0][pair_ids_for_delay],
-                                  delayed_pairs[1][pair_ids_for_delay]]
-        target_ids = delayed_pairs[1][pair_ids_for_delay]
-        delayed_conns[d] = (incoming_ids, # pre
-                            target_ids) # post
+        # since conn_pairs contains pre_ids, we need to look for them via
+        # delayed_pair_indices
+        pre_ids = conn_pairs[delayed_pair_indices[0][pair_ids_for_delay],
+                             delayed_pair_indices[1][pair_ids_for_delay]]
+
+        # columns are already post ids, no need to 'parse' through conn_pairs
+        post_ids = delayed_pair_indices[POST][pair_ids_for_delay]
+        delayed_conns[d] = (pre_ids, post_ids)
+
     return delayed_conns
 
 
@@ -104,3 +115,68 @@ def generate_pairs_and_delays(conn_prob:float, n_exc:int, n_inh:int,
     # import sys
     # sys.exit(0)
     return conn_dict
+
+
+def get_weight_key_for_delay(delay, weights_delay):
+    return [k for k in weights_delay
+            if int(k.split("d")[1]) == delay][0]
+
+
+def sort_by_post(weights, connectivity, post_ids, threshold):
+    by_post = {p: {} for p in post_ids}
+
+    for delay in connectivity:
+        pairs = connectivity[delay]
+        wkey = get_weight_key_for_delay(delay, weights)
+        weights_for_delay = weights[wkey]
+
+        for post in by_post:
+            whr = np.where(
+                    np.logical_and(
+                        pairs[_POST] == post, weights_for_delay > threshold))
+
+            for array_idx in whr[0]:
+                pre_id = pairs[_PRE][array_idx]
+                weight = weights_for_delay[array_idx]
+                pre_list = by_post[post].get(pre_id, [])
+                pre_list.append((weight, delay))
+                by_post[post][pre_id] = pre_list
+
+    return by_post
+
+
+def sort_by_pre(weights, connectivity, pre_ids, threshold):
+    by_pre = {p: {} for p in pre_ids}
+
+    for delay in connectivity:
+        pairs = connectivity[delay]
+        wkey = get_weight_key_for_delay(delay, weights)
+        weights_for_delay = weights[wkey]
+
+        for pre in by_pre:
+            whr = np.where(
+                    np.logical_and(
+                        pairs[_PRE] == pre, weights_for_delay > threshold))
+
+            for array_idx in whr[0]:
+                post_id = pairs[_POST][array_idx]
+                weight = weights_for_delay[array_idx]
+                pre_list = by_pre[pre].get(post_id, [])
+                pre_list.append((weight, delay))
+                by_pre[pre][post_id] = pre_list
+
+    return by_pre
+
+
+def conn_to_matrix(n_source, n_target, connectivity, weights):
+    weight_matrix = np.zeros((n_source, n_target))
+    for synapse_name in weights:
+        delay = int(synapse_name.split('d')[1])
+        conns = connectivity[delay]
+        n_conns = len(conns[_PRE])
+        for index in range(n_conns):
+            row, col = conns[_PRE][index], conns[_POST][index]
+            # weight_matrix[row, col] = max(weight_matrix[row, col], weights[index])
+            weight_matrix[row, col] = weights[synapse_name][index]
+
+    return weight_matrix

@@ -1,8 +1,7 @@
 import numpy as np
-import itertools
 
-_TS, _IDS = 0, 1
-_PRE, _POST = 0, 1
+from polychronous.connectivity import sort_by_post, sort_by_pre, conn_to_matrix
+from polychronous.constants import PRE, POST
 
 def get_neurons_with_high_incoming_weights(threshold, weights, connectivity):
     neurons = set()
@@ -21,7 +20,7 @@ def get_neurons_with_high_incoming_weights(threshold, weights, connectivity):
     return np.asarray(list(neurons))
 
 
-def transform_connectivity(connectivity, post_ids):
+def transform_connectivity(connectivity, post_ids, threshold=-np.inf):
     """bundle connectivity by post, then delay
         returns a dictionary {post: {delay: [pre_indices]}}
     """
@@ -30,30 +29,33 @@ def transform_connectivity(connectivity, post_ids):
         conns = connectivity[delay]
         for post in post_ids:
             list_indices_for_post = np.where(conns[1] == post)
-            by_post[post][delay] = conns[_PRE][list_indices_for_post]
+            by_post[post][delay] = conns[PRE][list_indices_for_post]
 
     return by_post
 
-def conn_to_matrix(n_source, n_target, connectivity, weights):
-    weight_matrix = np.zeros((n_source, n_target))
-    for synapse_name in weights:
-        delay = int(synapse_name.split('d')[1])
-        conns = connectivity[delay]
-        n_conns = len(conns[_PRE])
-        for index in range(n_conns):
-            row, col = conns[_PRE][index], conns[_POST][index]
-            # weight_matrix[row, col] = max(weight_matrix[row, col], weights[index])
-            weight_matrix[row, col] = weights[synapse_name][index]
-
-    return weight_matrix
-
-
-def make_triplets(neuron_ids):
-    combinations = itertools.combinations(neuron_ids, 3)
-    return combinations
-
 
 def find_groups(experiment_filename, threshold, start_time):
+    pass
+
+
+def find_groups_by_weights(experiment_filename, threshold, start_time):
+    data = np.load(experiment_filename, mmap_mode=True, allow_pickle=True)
+
+    sim_time = data['sim_time']
+    dt = data['dt']
+    n_exc = data['n_exc']
+    max_delay = data['max_delay']
+
+    weights = data['final_weights'].item()
+    connectivity = data['conn_pairs'].item()
+
+    conns_by_post = sort_by_post(weights, connectivity['e_to_e'], np.arange(n_exc), threshold)
+    conns_by_pre = sort_by_pre(weights, connectivity['e_to_e'], np.arange(n_exc), threshold)
+
+    weight_matrix = conn_to_matrix(n_exc, n_exc, connectivity['e_to_e'], weights)
+
+
+def find_groups_by_activity(experiment_filename, threshold, start_time):
     data =  np.load(experiment_filename, mmap_mode=True, allow_pickle=True)
 
     sim_time = data['sim_time']

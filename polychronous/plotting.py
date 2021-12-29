@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
+from polychronous.spike_finding import find_limit_indices
 from tqdm import tqdm
 import sys
 
@@ -18,16 +18,43 @@ def plot_weight_histograms(initial_weights, final_weights):
     ax[1].set_title('Final weights')
     ax[1].set_xlabel("Number of synapses")
 
-def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc,
-                dt, start_time_ms, end_time_ms,  ms_per_plot):
+
+def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
+                total_simulation_time, start_time_ms, end_time_ms,  ms_per_plot,
+                points_per_chunk=5000000):
+
+    half_sim_time = total_simulation_time / 2
+    use_reverse_search = start_time_ms >= half_sim_time
+
     sys.stdout.write("Plotting spikes\n")
     sys.stdout.flush()
 
     if stim_spikes is not None:
-        stim_times = stim_spikes[0] #* (1. / dt)
+        print("will plot stim also")
+        start_stim_idx, end_stim_idx = find_limit_indices(
+                                        stim_spikes, start_time_ms, end_time_ms,
+                                        points_per_chunk, reverse=use_reverse_search)
+        stim_times = stim_spikes[0, start_stim_idx:end_stim_idx] #* (1. / dt)
+        stim_ids = stim_spikes[1, start_stim_idx:end_stim_idx]
 
-    exc_times = exc_spikes[0] #* (1. / dt)
-    inh_times = inh_spikes[0] #* (1. / dt)
+    sys.stdout.write("\tExcitatory spikes\n")
+    sys.stdout.flush()
+
+    start_exc_idx, end_exc_idx = find_limit_indices(exc_spikes, start_time_ms,
+                                                    end_time_ms, points_per_chunk,
+                                                    reverse=use_reverse_search)
+    exc_times = exc_spikes[0,start_exc_idx:end_exc_idx] #* (1. / dt)
+    exc_ids = exc_spikes[1,start_exc_idx:end_exc_idx] #* (1. / dt)
+
+    sys.stdout.write("\tInhibitory spikes\n")
+    sys.stdout.flush()
+
+    start_inh_idx, end_inh_idx = find_limit_indices(inh_spikes, start_time_ms,
+                                                    end_time_ms, points_per_chunk,
+                                                    reverse=use_reverse_search)
+    inh_times = inh_spikes[0,start_inh_idx:end_inh_idx] #* (1. / dt)
+    inh_ids = inh_spikes[1,start_inh_idx:end_inh_idx] #* (1. / dt)
+
     ms_to_s = 1.0/1000.0
     for start_ms in tqdm(np.arange(start_time_ms, end_time_ms, ms_per_plot)):
         end_ms = min(end_time_ms, start_ms + ms_per_plot)
@@ -41,7 +68,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc,
         if stim_spikes is not None:
             whr = np.where(np.logical_and(start_ms <= stim_times,
                                           stim_times < end_ms))
-            axs[0].plot(stim_times[whr], stim_spikes[1][whr],
+            axs[0].plot(stim_times[whr], stim_ids[whr],
                        color='tab:green',
                        marker='.', markeredgewidth=0.,
                        markersize=3, linestyle='none')
@@ -53,14 +80,14 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc,
         ax = axs[1] if stim_spikes is not None else axs
         whr = np.where(np.logical_and(start_ms <= exc_times,
                                       exc_times < end_ms))
-        ax.plot(exc_times[whr], exc_spikes[1][whr],
+        ax.plot(exc_times[whr], exc_ids[whr],
                 color='tab:blue',
                 marker='.', markeredgewidth=0.,
                 markersize=3, linestyle='none')
 
         whr = np.where(np.logical_and(start_ms <= inh_times,
                                       inh_times < end_ms))
-        ax.plot(inh_times[whr], inh_spikes[1][whr] + n_exc,
+        ax.plot(inh_times[whr], inh_ids[whr] + n_exc,
                 color='tab:red',
                 marker='.', markeredgewidth=0.,
                 markersize=3, linestyle='none')

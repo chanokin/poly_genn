@@ -1,9 +1,16 @@
+import os.path
+import os
+import gc
+import psutil
 from copy import copy
 import numpy as np
 from matplotlib import pyplot as plt
 from pygenn import genn_wrapper
 from pygenn import genn_model
 from pathlib import Path
+import h5py
+from tqdm import tqdm
+from datetime import datetime
 from polychronous.poisson_source import poisson_input_model
 from polychronous.spike_source_array import spike_source_array
 from polychronous.connectivity_generation import generate_pairs_and_delays
@@ -14,22 +21,79 @@ from polychronous.plotting import (
 )
 from polychronous.find_groups import find_groups
 
+def freeze_network(plastic_synapses):
+    for ps in plastic_synapses:
+        syn = plastic_synapses[ps]
+        syn.vars['aPlus'].view[:] = 0
+        syn.push_var_to_device('aPlus')
+
+        syn.vars['aMinus'].view[:] = 0
+        syn.push_var_to_device('aMinus')
+
+def get_group(parent, group):
+    if group in parent:
+        return parent[group]
+    else:
+        return parent.create_group(group)
+
+
+def init_spike_recordings(filename, spike_groups_dict, h5_mode="w"):
+    with h5py.File(filename, h5_mode) as h5_file:
+        for group in spike_groups:
+            pop_group = get_group(h5_file, group)
+            pop_group.create_dataset("spikes", dtype="float32", shape=(3, 1),
+                                     maxshape=(3, None), chunks=(3, 1))
+
+        # def get_all(name):
+        #     print(name)
+        #
+        # h5_file.visit(get_all)
+
+def update_spike_recordings(filename, spike_groups_dict, epoch_idx, h5_mode="a"):
+    with h5py.File(filename, h5_mode) as h5_file:
+        spike_times = []
+        neuron_ids = []
+
+        for group in spike_groups:
+            h5_path = os.path.join("/", group, "spikes")
+            dst = h5_file[h5_path]
+
+            neuron_pop = spike_groups[group]
+            spike_times[:], neuron_ids[:] = neuron_pop.spike_recording_data
+            rec_cols = len(spike_times)
+            # mb_mem = int(np.round(psutil.Process(os.getpid()).memory_info().rss / 1024 ** 2))
+            # print(f"memory = {mb_mem}, n_spikes = {rec_cols} for {h5_path} at epoch {epoch_idx}")
+            # print()
+
+            h5_rows, h5_cols = dst.shape
+            if h5_cols == 1:
+                h5_cols = 0
+
+            dst.resize((h5_rows, h5_cols + rec_cols))
+            dst[0, h5_cols:] = spike_times
+            dst[1, h5_cols:] = neuron_ids
+            dst[2, h5_cols:] = epoch_idx
+
+        del spike_times, neuron_ids
+
+    gc.collect()
+
+
 def time_to_ms(hours, minutes, seconds):
     hours_to_seconds = 60.0 * 60.0
     minutes_to_seconds = 60.0
     seconds_to_ms = 1000.0
     return (hours * hours_to_seconds + minutes * minutes_to_seconds + seconds) * seconds_to_ms
 
-
-def append_spikes(spikes, recorded):
-    if spikes is None:
-        return np.asarray(recorded).copy()
-    else:
-        return np.hstack([spikes, np.asarray(recorded).copy()])
-
+freeze_last_iteration = bool(1)
+start_datetime = datetime.now().strftime("%d-%m-%Y__%H-%M")
+print(start_datetime)
 this_filename = Path(__file__).resolve().stem
 
-np.random.seed(1)
+output_filename = f"experiment_{this_filename}_{start_datetime}.npz"
+spikes_filename = f"spikes_for_{output_filename[:-4]}.h5"
+
+np.random.seed(13)
 
 do_all_conns = bool(1)
 binding = bool(0)
@@ -61,7 +125,7 @@ delay_steps_dist_params = {
 pattern_size = int(n_exc * 0.1)
 pattern_max_time = int(max_delay * 0.5)
 pattern_silence = 200 - pattern_max_time
-n_pattern_repeat = 6000
+n_pattern_repeat = 6#000
 pattern_start_t = 0
 n_patterns = 2
 patterns = {
@@ -70,13 +134,13 @@ patterns = {
     for p in range(n_patterns)
 }
 
-hours = 3
-minutes = 0
+hours = 24
+minutes = 10
 seconds = 0
 # seconds = 5
 sim_time = time_to_ms(hours, minutes, seconds)
 # sim_time = n_patterns * (pattern_silence + pattern_max_time) * n_pattern_repeat
-max_sim_time_per_run = 10 * 60 * sec_to_ms # run at most 10 minutes at a time
+max_sim_time_per_run = 5 * 60 * sec_to_ms # run at most 1 minute at a time
 max_sim_time_per_run = min(sim_time, max_sim_time_per_run)
 max_steps_per_run = int(max_sim_time_per_run / dt)
 
@@ -115,12 +179,6 @@ for rep in range(n_pattern_repeat):
         pattern_start_t +=  pattern_max_time + pattern_silence
 
     # pattern_start_t += pattern_silence
-
-conductance_params = {
-    'e_to_e': {'tau': 150, 'E': 0},
-    'e_to_i': {'tau': 2, 'E': 0},
-    'i_to_e': {'tau': 5, 'E': -70},
-}
 
 # LIF neuron initial state
 nrn_init = {"V": -65, "U": 0.2 * -65}
@@ -207,7 +265,6 @@ pat2pop = model.add_synapse_population(
     genn_model.init_connectivity("OneToOne", {})
 )
 
-
 net_conns = {}
 if do_all_conns:
     for conn_name in conn_pairs:
@@ -259,24 +316,33 @@ initial_weights = {k: net_conns[k].get_var_values('g').copy()
                    for k in net_conns if 'e_to_e' in k}
 
 
-pat_spikes = None
-exc_spikes = None
-inh_spikes = None
-stim_spikes = None
+
+h5_mode = "w"
+spike_groups = {
+    "input": stim,
+    "pattern": pattern_pop,
+    "exc": exc_pop,
+    "inh": inh_pop,
+}
+if os.path.isfile(spikes_filename):
+    os.remove(spikes_filename)
+
+init_spike_recordings(spikes_filename, spike_groups)
+
 weights = []
 # Simulate model
 n_global_steps = int(np.ceil(sim_time / dt)) // max_steps_per_run
-for global_step in range(n_global_steps):
+for global_step in tqdm(range(n_global_steps)):
     t_step = 0
+    if global_step == (n_global_steps - 1):
+        freeze_network({k: net_conns[k] for k in net_conns if 'e_to_e' in k})
+
     while t_step < max_steps_per_run:
         model.step_time()
         t_step += 1
     model.pull_recording_buffers_from_device()
 
-    pat_spikes = append_spikes(pat_spikes, pattern_pop.spike_recording_data)
-    stim_spikes = append_spikes(stim_spikes, stim.spike_recording_data)
-    exc_spikes = append_spikes(exc_spikes, exc_pop.spike_recording_data)
-    inh_spikes = append_spikes(inh_spikes, inh_pop.spike_recording_data)
+    update_spike_recordings(spikes_filename, spike_groups, global_step)
 
 
 
@@ -295,10 +361,7 @@ experiment_data = dict(
     pattern_silence = pattern_silence,
     n_pattern_repeat = n_pattern_repeat,
     pattern_start_t = pattern_start_t,
-    stim_spikes=stim_spikes,
-    exc_spikes=exc_spikes,
-    inh_spikes=inh_spikes,
-    pat_spikes=pat_spikes,
+    spikes_filename=spikes_filename,
     initial_weights=initial_weights,
     final_weights=final_weights,
     n_exc=n_exc,
@@ -319,19 +382,19 @@ experiment_data = dict(
     max_weight=max_weight,
 )
 
-filename = 'izh_polychronous_experiment.npz'
-np.savez_compressed(filename, **experiment_data)
 
-analysis_start = sim_time - 2 * sec_to_ms
+np.savez_compressed(output_filename, **experiment_data)
 
-plot_spikes(pat_spikes, exc_spikes, inh_spikes,
-            n_exc, dt, analysis_start, sim_time, 1000)
+# analysis_start = sim_time - 2 * 60 * sec_to_ms
+
+# plot_spikes(pat_spikes, exc_spikes, inh_spikes,
+#             n_exc, dt, analysis_start, sim_time, 1000)
 # plot_spikes(stim_spikes, exc_spikes, inh_spikes,
 #             n_exc, dt, analysis_start, sim_time, 1000)
 
 plot_weight_histograms(initial_weights, final_weights)
 
-plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time)
+# plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time)
 
 plt.show()
 
