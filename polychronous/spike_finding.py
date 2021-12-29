@@ -1,8 +1,10 @@
 import numpy as np
 from tqdm import tqdm
-from polychronous.constants import PRE, POST, TS, IDS
+from polychronous.constants import PRE, POST, TS, IDS, MAX_SPIKES_PER_SEARCH_STEP
 
-def find_limit_indices(spikes, start_ms, end_ms, points_per_chunk, reverse=False):
+
+def find_limit_indices(spikes, start_ms, end_ms,
+                       points_per_chunk=MAX_SPIKES_PER_SEARCH_STEP, reverse=False):
     if reverse:
         return find_limit_indices_reverse(spikes, start_ms, end_ms, points_per_chunk)
     else:

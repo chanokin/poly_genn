@@ -14,7 +14,7 @@ data =  np.load(filename, mmap_mode=True, allow_pickle=True)
 
 dt = data['dt']
 sim_time = data['sim_time']
-analysis_length = 5000
+analysis_length = 5 * 60 * 1000
 analysis_start = sim_time - analysis_length #200 * 4
 n_exc = data['n_exc']
 n_inh = data['n_inh']
@@ -45,7 +45,7 @@ n_stim_spikes = stim_spikes.shape
 #             analysis_length)
 # plt.savefig("end_spikes.png", dpi=150)
 
-groups_by_weight = find_groups_by_weights(filename, max_weight * 0.9)
+groups_by_weight = find_groups_by_weights(filename, max_weight * 0.9, analysis_start)
 
 plot_weight_histograms(initial_weights, final_weights)
 plt.savefig("weight_histograms.png", dpi=150)

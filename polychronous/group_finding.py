@@ -1,7 +1,10 @@
+import os
+import h5py
 import numpy as np
 
 from polychronous.connectivity import sort_by_post, sort_by_pre, conn_to_matrix
 from polychronous.constants import PRE, POST
+from polychronous.spike_finding import find_limit_indices
 
 def get_neurons_with_high_incoming_weights(threshold, weights, connectivity):
     neurons = set()
@@ -42,6 +45,8 @@ def find_groups_by_weights(experiment_filename, threshold, start_time):
     data = np.load(experiment_filename, mmap_mode=True, allow_pickle=True)
 
     sim_time = data['sim_time']
+    half_sim_time = sim_time / 2
+
     dt = data['dt']
     n_exc = data['n_exc']
     max_delay = data['max_delay']
@@ -53,6 +58,17 @@ def find_groups_by_weights(experiment_filename, threshold, start_time):
     conns_by_pre = sort_by_pre(weights, connectivity['e_to_e'], np.arange(n_exc), threshold)
 
     weight_matrix = conn_to_matrix(n_exc, n_exc, connectivity['e_to_e'], weights)
+
+    reverse_search = start_time > half_sim_time
+
+    h5_file = h5py.File(data["spikes_filename"].item(), "r")
+    exc_spikes = h5_file[os.path.join("exc", "spikes")]
+    start_idx, end_idx = find_limit_indices(exc_spikes, start_time, sim_time,
+                                            reverse=reverse_search)
+    spikes_to_analye = exc_spikes[:, start_idx:end_idx]
+    groups = {}
+
+    return groups
 
 
 def find_groups_by_activity(experiment_filename, threshold, start_time):

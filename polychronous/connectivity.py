@@ -119,10 +119,18 @@ def generate_pairs_and_delays(conn_prob:float, n_exc:int, n_inh:int,
 
 def get_weight_key_for_delay(delay, weights_delay):
     return [k for k in weights_delay
-            if int(k.split("d")[1]) == delay][0]
+            if k.endswith(f"d{delay}")][0]
 
 
 def sort_by_post(weights, connectivity, post_ids, threshold):
+    """
+    :param weights: Dictionary of weight lists, keys of the dictionary
+                    represent delays. Weight lists match the pre-post lists
+                    in the _connectivity_ parameter.
+    :param connectivity: Dictionary of pre and post neuron ids lists, keys of
+                         the dictionary represent delays. Weight lists match
+                         the weight lists in the _weights_ parameter.
+    """
     by_post = {p: {} for p in post_ids}
 
     for delay in connectivity:
@@ -133,10 +141,10 @@ def sort_by_post(weights, connectivity, post_ids, threshold):
         for post in by_post:
             whr = np.where(
                     np.logical_and(
-                        pairs[_POST] == post, weights_for_delay > threshold))
+                        pairs[POST] == post, weights_for_delay > threshold))
 
             for array_idx in whr[0]:
-                pre_id = pairs[_PRE][array_idx]
+                pre_id = pairs[PRE][array_idx]
                 weight = weights_for_delay[array_idx]
                 pre_list = by_post[post].get(pre_id, [])
                 pre_list.append((weight, delay))
@@ -156,10 +164,10 @@ def sort_by_pre(weights, connectivity, pre_ids, threshold):
         for pre in by_pre:
             whr = np.where(
                     np.logical_and(
-                        pairs[_PRE] == pre, weights_for_delay > threshold))
+                        pairs[PRE] == pre, weights_for_delay > threshold))
 
             for array_idx in whr[0]:
-                post_id = pairs[_POST][array_idx]
+                post_id = pairs[POST][array_idx]
                 weight = weights_for_delay[array_idx]
                 pre_list = by_pre[pre].get(post_id, [])
                 pre_list.append((weight, delay))
@@ -173,9 +181,9 @@ def conn_to_matrix(n_source, n_target, connectivity, weights):
     for synapse_name in weights:
         delay = int(synapse_name.split('d')[1])
         conns = connectivity[delay]
-        n_conns = len(conns[_PRE])
+        n_conns = len(conns[PRE])
         for index in range(n_conns):
-            row, col = conns[_PRE][index], conns[_POST][index]
+            row, col = conns[PRE][index], conns[POST][index]
             # weight_matrix[row, col] = max(weight_matrix[row, col], weights[index])
             weight_matrix[row, col] = weights[synapse_name][index]
 
