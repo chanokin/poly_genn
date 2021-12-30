@@ -45,7 +45,7 @@ n_stim_spikes = stim_spikes.shape
 #             analysis_length)
 # plt.savefig("end_spikes.png", dpi=150)
 
-groups_by_weight = find_groups_by_weights(filename, max_weight * 0.9, analysis_start)
+groups_by_weight = find_groups_by_weights(filename, max_weight * 0.95, analysis_start)
 
 plot_weight_histograms(initial_weights, final_weights)
 plt.savefig("weight_histograms.png", dpi=150)

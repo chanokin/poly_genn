@@ -1,10 +1,17 @@
 import os
+import gc
 import h5py
 import numpy as np
 
 from polychronous.connectivity import sort_by_post, sort_by_pre, conn_to_matrix
-from polychronous.constants import PRE, POST
+from polychronous.constants import (
+    PRE, POST, MIN_PRE_FOR_GROUP, TS, IDS,
+    SPIKE_T_TOLERANCE_FOR_GROUP,
+    MAX_CHAIN_LENGTH_FOR_GROUP
+)
 from polychronous.spike_finding import find_limit_indices
+from polychronous.utils import make_triplets
+
 
 def get_neurons_with_high_incoming_weights(threshold, weights, connectivity):
     neurons = set()
@@ -31,14 +38,130 @@ def transform_connectivity(connectivity, post_ids, threshold=-np.inf):
     for delay in connectivity:
         conns = connectivity[delay]
         for post in post_ids:
-            list_indices_for_post = np.where(conns[1] == post)
+            list_indices_for_post = np.where(conns[POST] == post)
             by_post[post][delay] = conns[PRE][list_indices_for_post]
 
     return by_post
 
 
-def find_groups(experiment_filename, threshold, start_time):
-    pass
+def build_group_chains(dt, start_neuron_ids, start_times, spikes,
+                       conns_by_post, conns_by_pre, depth=0):
+    chain = []
+    possible = {}
+    possible_set = set()
+    for t, pre_id in zip(start_times, start_neuron_ids):
+        post_ids = np.asarray(sorted(conns_by_pre[pre_id].keys()))
+        if len(post_ids) == 0:
+            continue
+
+        delays = np.asarray([conns_by_pre[pre_id][_id][0][1] for _id in post_ids])
+        post_times = t + delays + dt
+
+        present_times, present_ids = which_spiked_at_times(post_times, post_ids, spikes)
+
+        # if no post exist in proper time, this chain is cut off
+        if len(present_ids) == 0:
+            return chain
+
+        print(f"n_post for {pre_id} = {len(present_ids)}")
+        possible[pre_id] = (present_times, present_ids)
+        possible_set |= set([x for x in zip(present_times.astype('int'), present_ids)])
+
+    print(f"len(possible_set) = {len(possible_set)}")
+    print(possible_set)
+
+
+    return chain
+
+
+def are_all_inputs_present(candidate_times, candidate_ids, spikes,
+                           atol=SPIKE_T_TOLERANCE_FOR_GROUP):
+    for t, nid in zip(candidate_times, candidate_ids):
+        whr = np.where(np.isclose(spikes[TS], t, atol=atol))[0]
+        if len(whr) == 0:
+            return False
+
+        nids_spiked_at_time_t = spikes[IDS, whr]
+        if nid not in nids_spiked_at_time_t:
+            return False
+
+    return True
+
+
+def which_spiked_at_times(candidate_times, candidate_ids, spikes,
+                          atol=SPIKE_T_TOLERANCE_FOR_GROUP):
+    times = []
+    nids = []
+    for t, nid in zip(candidate_times, candidate_ids):
+        whr = np.where(np.isclose(spikes[TS], t, atol=atol))[0]
+        if len(whr) == 0:
+            continue
+        ts = spikes[TS, whr]
+        ids = spikes[IDS, whr]
+
+        if nid in ids:
+            times.append(t)
+            nids.append(nid)
+
+    return np.hstack(times), np.hstack(nids)
+
+
+def find_groups(dt, start_time, max_delay, spikes_to_analyse,
+                conns_by_post, conns_by_pre):
+    """
+        :param conns_by_post: {post: {pre: [(weight, delay)]}}
+        :param conns_by_pre: {pre: {post: [(weight, delay)]}}
+    """
+    groups = {}
+    min_time = start_time + max_delay
+
+    indices_for_spikes_above_min_time = np.where(spikes_to_analyse[0] >= min_time)[0]
+    sorted_indices = np.argsort(spikes_to_analyse[0, indices_for_spikes_above_min_time])
+    indices_for_spikes_above_min_time = indices_for_spikes_above_min_time[sorted_indices]
+
+    for ii, pivot_index in enumerate(indices_for_spikes_above_min_time):
+        if ii == (len(indices_for_spikes_above_min_time) - 1):
+            break
+
+        pivot_time, pivot_id = spikes_to_analyse[0:2, pivot_index]
+        back_spikes = spikes_to_analyse[0:2, :pivot_index].view()
+
+        next_spike_index = indices_for_spikes_above_min_time[ii + 1]
+        forward_spikes = spikes_to_analyse[0:2, pivot_index:].view()
+        # if this post neuron is connected to fewer than 3 inputs, skip
+        if len(conns_by_post[pivot_id]) < MIN_PRE_FOR_GROUP:
+            continue
+
+        pre_ids = np.asarray(sorted(conns_by_post[pivot_id].keys()))
+
+        if len(pre_ids) == 0:
+            continue
+
+        delays = np.asarray([conns_by_post[pivot_id][pre_id][0][1] for pre_id in pre_ids])
+        # make triplets over indices to use them for pre ids and delays
+        triplets = make_triplets(np.arange(len(pre_ids)))
+        for triplet in triplets:
+            triplet = np.asarray(triplet)
+            tri_delays = delays[triplet]
+            tri_ids = pre_ids[triplet]
+            tri_times = pivot_time - tri_delays - dt
+            tri_present = are_all_inputs_present(tri_times, tri_ids, back_spikes)
+
+            if not tri_present:
+                continue
+
+            text_ids = "{}_{}_{}".format(*tri_ids)
+            grp = build_group_chains(dt, tri_ids, tri_times, forward_spikes,
+                                     conns_by_post, conns_by_pre)
+
+            if len(grp) == 0:
+                continue
+
+            groups[text_ids] = grp
+
+
+
+    return groups
 
 
 def find_groups_by_weights(experiment_filename, threshold, start_time):
@@ -66,9 +189,14 @@ def find_groups_by_weights(experiment_filename, threshold, start_time):
     start_idx, end_idx = find_limit_indices(exc_spikes, start_time, sim_time,
                                             reverse=reverse_search)
     spikes_to_analyse = exc_spikes[:, start_idx:end_idx]
-    groups = {}
 
-    return groups
+    h5_file.close()
+    data.close()
+    # try and remove objects from memory
+    gc.collect()
+
+    return find_groups(dt, start_time, max_delay, spikes_to_analyse,
+                       conns_by_post, conns_by_pre)
 
 
 def find_groups_by_activity(experiment_filename, threshold, start_time):

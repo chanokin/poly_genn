@@ -1,3 +1,10 @@
-TS, IDS = 0, 1
-PRE, POST = 0, 1
-MAX_SPIKES_PER_SEARCH_STEP = int(1e6)
+from typing import Final
+TS:Final = 0
+IDS:Final = 1
+PRE:Final = 0
+POST:Final = 1
+MAX_SPIKES_PER_SEARCH_STEP:Final = int(1e6)
+MIN_PRE_FOR_GROUP:Final = 3
+# SPIKE_T_TOLERANCE_FOR_GROUP:Final = 1
+SPIKE_T_TOLERANCE_FOR_GROUP:Final = 1e-9
+MAX_CHAIN_LENGTH_FOR_GROUP:Final = 1e-9
