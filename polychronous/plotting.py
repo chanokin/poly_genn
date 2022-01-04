@@ -75,7 +75,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
             axs[0].grid()
             axs[0].set_xlim(start_ms, end_ms)
             ticks = axs[0].get_xticks()
-            axs[0].set_xticklabels(ticks * ms_to_s)
+            axs[0].set_xticklabels([f"{x:6.2f}" for x in (ticks * ms_to_s)])
 
         ax = axs[1] if stim_spikes is not None else axs
         whr = np.where(np.logical_and(start_ms <= exc_times,
@@ -94,7 +94,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
         ax.grid()
         ax.set_xlim(start_ms, end_ms)
         ticks = ax.get_xticks()
-        ax.set_xticklabels(ticks * ms_to_s)
+        ax.set_xticklabels([f"{x:6.2f}" for x in (ticks * ms_to_s)])
 
 
 def plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time_ms,

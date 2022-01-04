@@ -1,6 +1,34 @@
 import numpy as np
 from polychronous.constants import POST, PRE
+from pygenn.genn_wrapper import NO_DELAY
 
+
+def pack_conns_per_delay(pre_neuron_ids, post_neuron_ids, delays):
+    """ we have to use homogeneous delays in GeNN so we sort by delay to generate
+        one 'projection' for each delay 'slot'
+    """
+
+    unique_delays = np.unique(delays)
+    conn_dict_per_delay = {}
+    for d in unique_delays:
+        pair_indices_for_delay_d = np.where(delays == d)[0]
+        pre_ids = pre_neuron_ids[pair_indices_for_delay_d]
+        post_ids = post_neuron_ids[pair_indices_for_delay_d]
+        conn_dict_per_delay[float(d)] = (pre_ids, post_ids)
+
+    return conn_dict_per_delay
+
+
+def generate_inter_layer_conns(conn_prob, pre_size, post_size, min_delay, max_delay):
+    n_conns_per_post = int(np.ceil(pre_size * conn_prob))
+    pre_ids_per_post = np.random.randint(0, pre_size, size=(post_size, n_conns_per_post))
+    # each row is a
+    post_ids = np.repeat(np.arange(post_size), n_conns_per_post)
+    pre_ids = pre_ids_per_post.flatten()
+    delays = np.random.random_integers(min_delay, max_delay, size=post_ids.shape)
+
+    return pack_conns_per_delay(pre_ids, post_ids, delays)
+    
 
 def generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay):
     """:param conn_pairs: a matrix containing pre-synaptic ids, each column
@@ -9,25 +37,18 @@ def generate_exc_to_exc(conn_pairs, n_exc, min_delay, max_delay):
     delayed_pair_indices = np.where(conn_pairs[:, :n_exc] < n_exc)
 
     n_exc_to_exc = len(delayed_pair_indices[0])
+
+    # pre indices are the data in 'conn_pairs'
+    pre_ids = conn_pairs[delayed_pair_indices]
+
+    # post ids are simply which column
+    post_ids = delayed_pair_indices[1]
+
     # generate as many random delays as exc-to-exc connections found
     # max is inclusive here
     delays = np.random.random_integers(min_delay, max_delay, n_exc_to_exc)
 
-    # we have to use homogeneous delays in GeNN so we sort by delay to generate
-    # one 'projection' for each delay 'slot'
-    delayed_conns = {}
-    for d in range(min_delay, max_delay+1):
-        pair_ids_for_delay = np.where(delays == d)[0]
-        # since conn_pairs contains pre_ids, we need to look for them via
-        # delayed_pair_indices
-        pre_ids = conn_pairs[delayed_pair_indices[0][pair_ids_for_delay],
-                             delayed_pair_indices[1][pair_ids_for_delay]]
-
-        # columns are already post ids, no need to 'parse' through conn_pairs
-        post_ids = delayed_pair_indices[POST][pair_ids_for_delay]
-        delayed_conns[d] = (pre_ids, post_ids)
-
-    return delayed_conns
+    return pack_conns_per_delay(pre_ids, post_ids, delays)
 
 
 def generate_inh_to_inh(conn_pairs, n_exc):
@@ -44,7 +65,7 @@ def generate_inh_to_inh(conn_pairs, n_exc):
     # don't add back the n_exc here
     i2i = (incoming_ids, pairs[1])
 
-    return {1: i2i} # delay set to 1 always
+    return {NO_DELAY: i2i} # delay set to 1 always
 
 
 def generate_exc_to_inh(conn_pairs, n_exc):
@@ -58,7 +79,7 @@ def generate_exc_to_inh(conn_pairs, n_exc):
     # don't add back the n_exc here
     e2i =  (incoming_ids, pairs[1])
 
-    return {1: e2i} # delay set to 1 always
+    return {NO_DELAY: e2i} # delay set to 1 always
 
 
 def generate_inh_to_exc(conn_pairs, n_exc):
@@ -72,7 +93,7 @@ def generate_inh_to_exc(conn_pairs, n_exc):
 
     i2e =  (incoming_ids, pairs[1])
 
-    return {1: i2e} # delay set to 1 always
+    return {NO_DELAY: i2e} # delay set to 1 always
 
 
 
@@ -87,12 +108,14 @@ def generate_pairs_and_delays(conn_prob:float, n_exc:int, n_inh:int,
     # a post-synaptic neuron (either exc or inh) NOTE: max is inclusive
     conn_pairs = np.empty((n_incoming, total), dtype='int')
     all_ids = np.arange(total)
+    exc_ids = np.arange(n_exc)
     for post in range(total):
+        choices = all_ids if post < n_exc else exc_ids
         conn_pairs[:, post] = np.random.choice(
-                                        all_ids, size=n_incoming, replace=False)
+                                        choices, size=n_incoming, replace=False)
         whr = np.where(conn_pairs[:, post] == post)[0]
         if len(whr):
-            remaining = np.setdiff1d(all_ids, conn_pairs[:, post])
+            remaining = np.setdiff1d(choices, conn_pairs[:, post])
             conn_pairs[whr, post] = np.random.choice(
                                         remaining, size=len(whr), replace=False)
 

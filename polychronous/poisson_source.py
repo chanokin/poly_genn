@@ -17,7 +17,8 @@ poisson_input_model = create_custom_neuron_class(
     ],
     sim_code='''
     //printf("input = %f\\ttime = %f\\n", $(rate), $(t));
-    const bool spike = $(gennrand_uniform) >= exp(-fabs($(rate)) * $(time_scale));
+    const bool is_ms = ( $(t) - int($(t)) ) < DT;
+    const bool spike = ( $(gennrand_uniform) >= exp(-fabs($(rate)) * $(time_scale)) ) && is_ms;
     ''',
     threshold_condition_code='$(rate) > 0.0 && spike',
     is_auto_refractory_required=False,
