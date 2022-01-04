@@ -8,8 +8,7 @@ from polychronous.plotting import (
 from polychronous.group_finding import find_groups_by_weights
 
 sec_to_ms = 1000.
-# out_dir = './max_w_10'
-out_dir = '.'
+out_dir = './max_w_10'
 filename = "experiment_izh_plastic_in_patterns"
 filename = f"{filename}.npz"
 data =  np.load(os.path.join(out_dir, filename),

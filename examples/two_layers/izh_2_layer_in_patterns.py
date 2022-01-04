@@ -117,11 +117,21 @@ n_pat = 1000
 min_delay = 1
 max_delay = 20
 conn_probability = 0.1
-conn_pairs = generate_pairs_and_delays(conn_probability, n_exc, n_inh,
-                                       min_delay, max_delay)
 
 input_conns = generate_inter_layer_conns(conn_probability, n_pat, n_exc,
                                          min_delay, max_delay)
+
+conn_pairs_0 = generate_pairs_and_delays(conn_probability, n_exc, n_inh,
+                                         min_delay, max_delay)
+
+conn_pairs_1 = generate_pairs_and_delays(conn_probability, n_exc, n_inh,
+                                         min_delay, max_delay)
+
+l0_to_l1_conns = generate_inter_layer_conns(conn_probability, n_exc, n_exc,
+                                            min_delay, max_delay)
+
+l1_to_l0_conns = generate_inter_layer_conns(conn_probability, n_exc, n_exc,
+                                            min_delay, max_delay)
 
 # Poisson
 stim_init = {
@@ -231,10 +241,6 @@ stdp_params["tauMinusDecay"] = np.exp(-dt/stdp_params["tauMinus"])
 model = genn_model.GeNNModel("float", this_filename)
 model.dT = dt
 
-stim = model.add_neuron_population(
-        "Stim", n_total, poisson_input_model,
-        {'dt': dt}, stim_init)
-
 start_spike = np.empty(shape=n_pat, dtype=np.uint32)
 end_spike = np.empty(shape=n_pat, dtype=np.uint32)
 
@@ -257,49 +263,44 @@ pattern_pop.set_extra_global_param(
     "spikeTimes", flat_spikes
 )
 
-exc_pop = model.add_neuron_population(
-            "exc", n_exc, "Izhikevich", exc_params, nrn_init)
+exc_pop_0 = model.add_neuron_population(
+            "exc_0", n_exc, "Izhikevich", exc_params, nrn_init)
 
-inh_pop = model.add_neuron_population(
-            "inh", n_inh, "Izhikevich", inh_params, nrn_init)
+inh_pop_0 = model.add_neuron_population(
+            "inh_0", n_inh, "Izhikevich", inh_params, nrn_init)
+
+exc_pop_1 = model.add_neuron_population(
+            "exc_1", n_exc, "Izhikevich", exc_params, nrn_init)
+
+inh_pop_1 = model.add_neuron_population(
+            "inh_1", n_inh, "Izhikevich", inh_params, nrn_init)
 
 
 spike_groups = {
     # "input": stim,
     "pattern": pattern_pop,
-    "exc": exc_pop,
-    "inh": inh_pop,
+    "exc_0": exc_pop_0,
+    "inh_0": inh_pop_0,
+    "exc_1": exc_pop_1,
+    "inh_1": inh_pop_1,
 }
 
 for p in spike_groups:
     spike_groups[p].spike_recording_enabled = True
 
 
-#
-# in2exc = model.add_synapse_population(
-#     "StimToExc", "SPARSE_INDIVIDUALG", genn_wrapper.NO_DELAY,
-#     stim, exc_pop,
-#     "StaticPulse", {}, {'g': in2pop_weight}, {}, {},
-#     "DeltaCurr", {}, {},
-# )
-# in2exc.set_sparse_connections(np.arange(n_exc), np.arange(n_exc))
-#
-# in2inh = model.add_synapse_population(
-#     "StimToInh", "SPARSE_INDIVIDUALG", genn_wrapper.NO_DELAY,
-#     stim, inh_pop,
-#     "StaticPulse", {}, {'g': in2pop_weight}, {}, {},
-#     "DeltaCurr", {}, {},
-# )
-# in2inh.set_sparse_connections(np.arange(n_inh) + n_exc, np.arange(n_inh))
+# -------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------- #
 
-net_conns = {}
-for conn_name in conn_pairs:
+net_conns_0 = {}
+for conn_name in conn_pairs_0:
     if '_to_' not in conn_name:
         continue
 
     s, t = conn_name.split('_to_')
-    source = exc_pop if s == 'e' else inh_pop
-    target = exc_pop if t == 'e' else inh_pop
+    source = exc_pop_0 if s == 'e' else inh_pop_0
+    target = exc_pop_0 if t == 'e' else inh_pop_0
     if s == 'e':
         conn_g_init = stdp_synapse_init #if t == 'e' else exc_synapse_init
         pre_wu_init = stdp_pre_init #if t == 'e' else {}
@@ -314,26 +315,70 @@ for conn_name in conn_pairs:
         synapse_type = 'StaticPulse'
         synapse_params = {}
 
-    for delay in conn_pairs[conn_name]:
+    for delay in conn_pairs_0[conn_name]:
         _synapse_params = copy(synapse_params)
         # if s == 'e' and t == 'e':
         if s == 'e':
             _synapse_params['delay'] = delay
             _synapse_params['delayDecay'] = np.exp(-delay/_synapse_params['tauPlus'])
 
-        synapse_name = f"{s}_to_{t}_d{int(delay)}"
+        synapse_name = f"{source.name}_to_{target.name}_d{int(delay)}"
         print(f"setting up synapse {synapse_name}")
         delay_step = (delay if delay == genn_wrapper.NO_DELAY
                       else max(0, int((delay-1) / dt)))
-        net_conns[synapse_name] =  model.add_synapse_population(
+        net_conns_0[synapse_name] =  model.add_synapse_population(
             synapse_name, "SPARSE_INDIVIDUALG", delay_step,
             source, target,
             synapse_type, _synapse_params, conn_g_init,
             pre_wu_init, post_wu_init,
             "DeltaCurr", {}, {},
         )
-        pre_indices, post_indices = conn_pairs[conn_name][delay]
-        net_conns[synapse_name].set_sparse_connections(
+        pre_indices, post_indices = conn_pairs_0[conn_name][delay]
+        net_conns_0[synapse_name].set_sparse_connections(
+                                    pre_indices, post_indices)
+
+net_conns_1 = {}
+for conn_name in conn_pairs_1:
+    if '_to_' not in conn_name:
+        continue
+
+    s, t = conn_name.split('_to_')
+    source = exc_pop_1 if s == 'e' else inh_pop_1
+    target = exc_pop_1 if t == 'e' else inh_pop_1
+    if s == 'e':
+        conn_g_init = stdp_synapse_init #if t == 'e' else exc_synapse_init
+        pre_wu_init = stdp_pre_init #if t == 'e' else {}
+        post_wu_init = stdp_post_init #if t == 'e' else {}
+        synapse_type = stdp_synapse #if t == 'e' else 'StaticPulse'
+        synapse_params = stdp_params #if t == 'e' else {}
+
+    else:
+        conn_g_init = inh_synapse_init
+        pre_wu_init = {}
+        post_wu_init = {}
+        synapse_type = 'StaticPulse'
+        synapse_params = {}
+
+    for delay in conn_pairs_1[conn_name]:
+        _synapse_params = copy(synapse_params)
+        # if s == 'e' and t == 'e':
+        if s == 'e':
+            _synapse_params['delay'] = delay
+            _synapse_params['delayDecay'] = np.exp(-delay/_synapse_params['tauPlus'])
+
+        synapse_name = f"{source.name}_to_{target.name}_d{int(delay)}"
+        print(f"setting up synapse {synapse_name}")
+        delay_step = (delay if delay == genn_wrapper.NO_DELAY
+                      else max(0, int((delay-1) / dt)))
+        net_conns_1[synapse_name] =  model.add_synapse_population(
+            synapse_name, "SPARSE_INDIVIDUALG", delay_step,
+            source, target,
+            synapse_type, _synapse_params, conn_g_init,
+            pre_wu_init, post_wu_init,
+            "DeltaCurr", {}, {},
+        )
+        pre_indices, post_indices = conn_pairs_1[conn_name][delay]
+        net_conns_1[synapse_name].set_sparse_connections(
                                     pre_indices, post_indices)
 
 pat2pop_conns = {}
@@ -344,7 +389,7 @@ for delay in input_conns:
     synapse_type = stdp_synapse  # if t == 'e' else 'StaticPulse'
     synapse_params = stdp_params  # if t == 'e' else {}
     source = pattern_pop
-    target = exc_pop
+    target = exc_pop_0
     _synapse_params = copy(synapse_params)
     _synapse_params['delay'] = delay
     _synapse_params['delayDecay'] = np.exp(-delay / _synapse_params['tauPlus'])
@@ -369,12 +414,14 @@ model.load(num_recording_timesteps=steps_per_run)
 
 # [net_conns[k].pull_connectivity_from_device()
 #  for k in net_conns if 'e_to_e' in k]
-[net_conns[k].pull_var_from_device('g')
- for k in net_conns if 'e_to_e' in k]
-initial_weights = {k: net_conns[k].get_var_values('g').copy()
-                   for k in net_conns if 'e_to_e' in k}
+[net_conns_0[k].pull_var_from_device('g')
+ for k in net_conns_0 if 'e_to_e' in k]
+initial_weights = {k: net_conns_0[k].get_var_values('g').copy()
+                   for k in net_conns_0 if 'e_to_e' in k}
 
-
+# **************************************************************************** #
+# **************************************************************************** #
+# **************************************************************************** #
 
 h5_mode = "w"
 if os.path.isfile(spikes_filename):
@@ -405,16 +452,36 @@ for epoch_index in tqdm(range(0, n_epochs, n_epoch_per_run)):
     pattern_pop.push_extra_global_param_to_device("spikeTimes")
 
 
-# [net_conns[k].pull_connectivity_from_device()
-#  for k in net_conns if 'e_to_e' in k]
-[net_conns[k].pull_var_from_device('g')
- for k in net_conns if 'e_to_e' in k]
-final_weights = {k: net_conns[k].get_var_values('g').copy()
-                   for k in net_conns if 'e_to_e' in k}
+[net_conns_0[k].pull_var_from_device('g')
+ for k in net_conns_0 if 'e_to_e' in k]
+final_weights_0 = {k: net_conns_0[k].get_var_values('g').copy()
+                   for k in net_conns_0 if 'e_to_e' in k}
+
+[net_conns_1[k].pull_var_from_device('g')
+ for k in net_conns_1 if 'e_to_e' in k]
+final_weights_1 = {k: net_conns_1[k].get_var_values('g').copy()
+                   for k in net_conns_1 if 'e_to_e' in k}
 
 [pat2pop_conns[k].pull_var_from_device('g') for k in pat2pop_conns]
 final_pat2pop_weights = {k: pat2pop_conns[k].get_var_values('g').copy()
                          for k in pat2pop_conns}
+
+[l0_to_l1_conns[k].pull_var_from_device('g') for k in l0_to_l1_conns]
+final_l0_to_l1_weights = {k: l0_to_l1_conns[k].get_var_values('g').copy()
+                          for k in l0_to_l1_conns}
+
+[l1_to_l0_conns[k].pull_var_from_device('g') for k in l1_to_l0_conns]
+final_l1_to_l0_weights = {k: l1_to_l0_conns[k].get_var_values('g').copy()
+                          for k in l1_to_l0_conns}
+
+final_weights = dict(
+    final_weights_0=final_weights_0,
+    final_weights_1=final_weights_1,
+    final_pat2pop_weights=final_pat2pop_weights,
+    final_l0_to_l1_weights=final_l0_to_l1_weights,
+    final_l1_to_l0_weights=final_l1_to_l0_weights
+)
+
 experiment_data = dict(
     pattern_size = pattern_size,
     pattern_max_time = pattern_max_time,
@@ -469,8 +536,11 @@ plot_spikes(pat_spikes, exc_spikes, inh_spikes, n_exc, dt, sim_time,
             analysis_start, analysis_end, analysis_length)
 plt.savefig("start_spikes.png", dpi=150)
 
-plot_weight_histograms(initial_weights, final_weights)
-plt.savefig("weight_histograms.png", dpi=150)
+plot_weight_histograms(initial_weights, final_weights_0)
+plt.savefig("weights_0_histograms.png", dpi=150)
+
+plot_weight_histograms(initial_weights, final_weights_1)
+plt.savefig("weights_1_histograms.png", dpi=150)
 
 plot_weight_histograms(initial_weights, final_pat2pop_weights)
 plt.savefig("input_weight_histograms.png", dpi=150)
