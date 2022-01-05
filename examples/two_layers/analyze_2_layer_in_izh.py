@@ -38,13 +38,16 @@ exc1_spikes = spikes_file[os.path.join("exc_1", "spikes")]
 inh_0_spikes = spikes_file[os.path.join("inh_0", "spikes")]
 inh_1_spikes = spikes_file[os.path.join("inh_1", "spikes")]
 
-plot_spikes(None, exc0_spikes, inh_0_spikes,
-            n_exc, dt, sim_time, 0, 20 * analysis_length, analysis_length)
-plt.savefig(os.path.join(out_dir, "start_spikes_0.png"), dpi=150)
+for i in range(20):
+    start = analysis_length * i
+    end = start + analysis_length
+    plot_spikes(None, exc0_spikes, inh_0_spikes,
+                n_exc, dt, sim_time, start, end, analysis_length)
+    plt.savefig(os.path.join(out_dir, f"start_spikes_0_{i:06d}.png"), dpi=150)
 
-plot_spikes(None, exc1_spikes, inh_1_spikes,
-            n_exc, dt, sim_time, 0, 20 * analysis_length, analysis_length)
-plt.savefig(os.path.join(out_dir, "start_spikes_1.png"), dpi=150)
+    plot_spikes(None, exc1_spikes, inh_1_spikes,
+                n_exc, dt, sim_time, start, end, analysis_length)
+    plt.savefig(os.path.join(out_dir, f"start_spikes_1_{i:06d}.png"), dpi=150)
 
 # mid_start = 1000 * 1000
 # plot_spikes(None, exc_spikes, inh_spikes,
@@ -52,15 +55,18 @@ plt.savefig(os.path.join(out_dir, "start_spikes_1.png"), dpi=150)
 # plt.savefig("mid_spikes.png", dpi=150)
 #
 #
-plot_spikes(None, exc0_spikes, inh_0_spikes,
-            n_exc, dt, sim_time, analysis_start, analysis_start+analysis_length,
-            analysis_length)
-plt.savefig(os.path.join(out_dir, "end_spikes_0.png"), dpi=150)
+for i in range(20):
+    start = analysis_start + i * analysis_length
+    end = start + analysis_length
+    plot_spikes(None, exc0_spikes, inh_0_spikes,
+                n_exc, dt, sim_time, start, end,
+                analysis_length)
+    plt.savefig(os.path.join(out_dir, f"end_spikes_0_{i:06d}.png"), dpi=150)
 
-plot_spikes(None, exc1_spikes, inh_1_spikes,
-            n_exc, dt, sim_time, analysis_start, analysis_start+analysis_length,
-            analysis_length)
-plt.savefig(os.path.join(out_dir, "end_spikes_1.png"), dpi=150)
+    plot_spikes(None, exc1_spikes, inh_1_spikes,
+                n_exc, dt, sim_time, start, end,
+                analysis_length)
+    plt.savefig(os.path.join(out_dir, f"end_spikes_1_{i:06d}.png"), dpi=150)
 
 
 # groups_by_weight = find_groups_by_weights(filename, max_weight * 0.95, analysis_start)
