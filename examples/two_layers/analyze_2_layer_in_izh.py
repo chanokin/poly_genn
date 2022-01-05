@@ -42,12 +42,12 @@ start = 0
 end = start + 20 * analysis_length
 plot_spikes(None, exc0_spikes, inh_0_spikes,
             n_exc, dt, sim_time, start, end, analysis_length,
-            "start_spikes_0_{:06d}.png")
+            save_filename="start_spikes_0_{:06d}.png")
 # plt.savefig(os.path.join(out_dir, f"start_spikes_0_{i:06d}.png"), dpi=150)
 
 plot_spikes(None, exc1_spikes, inh_1_spikes,
             n_exc, dt, sim_time, start, end, analysis_length,
-            "start_spikes_1_{:06d}.png")
+            save_filename="start_spikes_1_{:06d}.png")
 # plt.savefig(os.path.join(out_dir, f"start_spikes_1_{i:06d}.png"), dpi=150)
 
 # mid_start = 1000 * 1000
@@ -61,13 +61,13 @@ end = start + 20 * analysis_length
 plot_spikes(None, exc0_spikes, inh_0_spikes,
             n_exc, dt, sim_time, start, end,
             analysis_length,
-            "end_spikes_0_{:06d}.png")
+            save_filename="end_spikes_0_{:06d}.png")
 # plt.savefig(os.path.join(out_dir, f"end_spikes_0_{i:06d}.png"), dpi=150)
 
 plot_spikes(None, exc1_spikes, inh_1_spikes,
             n_exc, dt, sim_time, start, end,
             analysis_length,
-            "end_spikes_1_{:06d}.png")
+            save_filename="end_spikes_1_{:06d}.png")
 # plt.savefig(os.path.join(out_dir, f"end_spikes_1_{i:06d}.png"), dpi=150)
 
 
