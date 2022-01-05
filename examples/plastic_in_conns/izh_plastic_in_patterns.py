@@ -388,7 +388,7 @@ for epoch_index in tqdm(range(0, n_epochs, n_epoch_per_run)):
     t_step = 0
     if epoch_index >= (n_epochs - n_epoch_per_run):
         freeze_network({k: net_conns[k] for k in net_conns if 'e_to_e' in k})
-        remove_random_input([in2exc, in2inh])
+        # remove_random_input([in2exc, in2inh])
 
     while t_step < steps_per_run:
         model.step_time()

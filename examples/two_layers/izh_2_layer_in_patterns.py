@@ -160,7 +160,7 @@ pattern_size = int(n_pat * 0.1)
 pattern_max_time = int(max_delay * 0.5)
 pattern_period = 200
 pattern_silence = pattern_period - pattern_max_time
-n_epochs = 2000
+n_epochs = 20#00
 n_epoch_per_run = min(10, n_epochs)
 n_pattern_repeat = 20
 pattern_start_t = 10
@@ -381,6 +381,63 @@ for conn_name in conn_pairs_1:
         net_conns_1[synapse_name].set_sparse_connections(
                                     pre_indices, post_indices)
 
+e0_to_e1_conns = {}
+conns_for_loop = l0_to_l1_conns
+for delay in conns_for_loop:
+    conn_g_init = stdp_synapse_init  # if t == 'e' else exc_synapse_init
+    pre_wu_init = stdp_pre_init  # if t == 'e' else {}
+    post_wu_init = stdp_post_init  # if t == 'e' else {}
+    synapse_type = stdp_synapse  # if t == 'e' else 'StaticPulse'
+    synapse_params = stdp_params  # if t == 'e' else {}
+    source = exc_pop_0
+    target = exc_pop_1
+    _synapse_params = copy(synapse_params)
+    _synapse_params['delay'] = delay
+    _synapse_params['delayDecay'] = np.exp(-delay / _synapse_params['tauPlus'])
+
+    synapse_name = f"{source.name}_to_{target.name}_d{int(delay)}"
+    print(f"setting up synapse {synapse_name}")
+    delay_step = (delay if delay == genn_wrapper.NO_DELAY
+                  else max(0, int((delay - 1) / dt)))
+    e0_to_e1_conns[synapse_name] = model.add_synapse_population(
+        synapse_name, "SPARSE_INDIVIDUALG", delay_step,
+        source, target,
+        synapse_type, _synapse_params, conn_g_init,
+        pre_wu_init, post_wu_init,
+        "DeltaCurr", {}, {},
+    )
+    pre_indices, post_indices = conns_for_loop[delay]
+    e0_to_e1_conns[synapse_name].set_sparse_connections(pre_indices, post_indices)
+
+e1_to_e0_conns = {}
+conns_for_loop = l1_to_l0_conns
+for delay in conns_for_loop:
+    conn_g_init = stdp_synapse_init  # if t == 'e' else exc_synapse_init
+    pre_wu_init = stdp_pre_init  # if t == 'e' else {}
+    post_wu_init = stdp_post_init  # if t == 'e' else {}
+    synapse_type = stdp_synapse  # if t == 'e' else 'StaticPulse'
+    synapse_params = stdp_params  # if t == 'e' else {}
+    source = exc_pop_1
+    target = exc_pop_0
+    _synapse_params = copy(synapse_params)
+    _synapse_params['delay'] = delay
+    _synapse_params['delayDecay'] = np.exp(-delay / _synapse_params['tauPlus'])
+
+    synapse_name = f"{source.name}_to_{target.name}_d{int(delay)}"
+    print(f"setting up synapse {synapse_name}")
+    delay_step = (delay if delay == genn_wrapper.NO_DELAY
+                  else max(0, int((delay - 1) / dt)))
+    e1_to_e0_conns[synapse_name] = model.add_synapse_population(
+        synapse_name, "SPARSE_INDIVIDUALG", delay_step,
+        source, target,
+        synapse_type, _synapse_params, conn_g_init,
+        pre_wu_init, post_wu_init,
+        "DeltaCurr", {}, {},
+    )
+    pre_indices, post_indices = conns_for_loop[delay]
+    e1_to_e0_conns[synapse_name].set_sparse_connections(pre_indices, post_indices)
+
+
 pat2pop_conns = {}
 for delay in input_conns:
     conn_g_init = stdp_synapse_init  # if t == 'e' else exc_synapse_init
@@ -433,9 +490,9 @@ weights = []
 # Simulate model
 for epoch_index in tqdm(range(0, n_epochs, n_epoch_per_run)):
     t_step = 0
-    if epoch_index >= (n_epochs - n_epoch_per_run):
-        freeze_network({k: net_conns[k] for k in net_conns if 'e_to_e' in k})
-        remove_random_input([in2exc, in2inh])
+    # if epoch_index >= (n_epochs - n_epoch_per_run):
+    #     freeze_network({k: net_conns[k] for k in net_conns if 'e_to_e' in k})
+    #     remove_random_input([in2exc, in2inh])
 
     while t_step < steps_per_run:
         model.step_time()
