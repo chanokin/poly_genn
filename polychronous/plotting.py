@@ -24,7 +24,7 @@ def plot_weight_histograms(initial_weights, final_weights, title=None):
 
 def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
                 total_simulation_time, start_time_ms, end_time_ms,  ms_per_plot,
-                points_per_chunk=5000000):
+                points_per_chunk=5000000, save_filename=None):
 
     half_sim_time = total_simulation_time / 2
     use_reverse_search = start_time_ms >= half_sim_time
@@ -60,6 +60,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
         inh_ids = inh_spikes[1,start_inh_idx:end_inh_idx] #* (1. / dt)
 
     ms_to_s = 1.0/1000.0
+    time_index = 0
     for start_ms in tqdm(np.arange(start_time_ms, end_time_ms, ms_per_plot)):
         end_ms = min(end_time_ms, start_ms + ms_per_plot)
         if stim_spikes is not None:
@@ -101,6 +102,11 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
         ax.set_xlim(start_ms, end_ms)
         ticks = ax.get_xticks()
         ax.set_xticklabels([f"{x:.2f}" for x in (ticks * ms_to_s)])
+
+        if save_filename is not None:
+            plt.savefig(save_filename.format(time_index), dpi=300)
+
+        time_index += 1
 
 
 def plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time_ms,
