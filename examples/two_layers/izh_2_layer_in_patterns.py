@@ -160,9 +160,9 @@ pattern_size = int(n_pat * 0.1)
 pattern_max_time = int(max_delay * 0.5)
 pattern_period = 200
 pattern_silence = pattern_period - pattern_max_time
-n_epochs = 20#00
-n_epoch_per_run = min(10, n_epochs)
-n_pattern_repeat = 20
+n_epochs = 200
+n_epoch_per_run = min(1, n_epochs)
+n_pattern_repeat = 10
 pattern_start_t = 10
 n_patterns = 2
 epoch_sim_time = n_pattern_repeat * n_patterns * pattern_period
@@ -278,11 +278,11 @@ inh_pop_1 = model.add_neuron_population(
 
 spike_groups = {
     # "input": stim,
-    "pattern": pattern_pop,
+    # "pattern": pattern_pop,
     "exc_0": exc_pop_0,
-    "inh_0": inh_pop_0,
+    # "inh_0": inh_pop_0,
     "exc_1": exc_pop_1,
-    "inh_1": inh_pop_1,
+    # "inh_1": inh_pop_1,
 }
 
 for p in spike_groups:
@@ -523,13 +523,13 @@ final_weights_1 = {k: net_conns_1[k].get_var_values('g').copy()
 final_pat2pop_weights = {k: pat2pop_conns[k].get_var_values('g').copy()
                          for k in pat2pop_conns}
 
-[l0_to_l1_conns[k].pull_var_from_device('g') for k in l0_to_l1_conns]
-final_l0_to_l1_weights = {k: l0_to_l1_conns[k].get_var_values('g').copy()
-                          for k in l0_to_l1_conns}
+[e0_to_e1_conns[k].pull_var_from_device('g') for k in e0_to_e1_conns]
+final_l0_to_l1_weights = {k: e0_to_e1_conns[k].get_var_values('g').copy()
+                          for k in e0_to_e1_conns}
 
-[l1_to_l0_conns[k].pull_var_from_device('g') for k in l1_to_l0_conns]
-final_l1_to_l0_weights = {k: l1_to_l0_conns[k].get_var_values('g').copy()
-                          for k in l1_to_l0_conns}
+[e1_to_e0_conns[k].pull_var_from_device('g') for k in e1_to_e0_conns]
+final_l1_to_l0_weights = {k: e1_to_e0_conns[k].get_var_values('g').copy()
+                          for k in e1_to_e0_conns}
 
 final_weights = dict(
     final_weights_0=final_weights_0,
@@ -550,14 +550,16 @@ experiment_data = dict(
     spikes_filename=spikes_filename,
     initial_weights=initial_weights,
     final_weights=final_weights,
-    final_pat2pop_weights=final_pat2pop_weights,
     n_exc=n_exc,
     n_inh=n_inh,
     exc_params=exc_params,
     inh_params=inh_params,
     min_delay=min_delay,
     max_delay=max_delay,
-    conn_pairs=conn_pairs,
+    conn_pairs_0=conn_pairs_0,
+    conn_pairs_1=conn_pairs_1,
+    l0_to_l1_conns=l0_to_l1_conns,
+    l1_to_l0_conns=l1_to_l0_conns,
     conn_probability=conn_probability,
     sim_time=sim_time,
     dt=dt,
@@ -573,33 +575,33 @@ experiment_data = dict(
 np.savez_compressed(output_filename, **experiment_data)
 
 
-spikes_file = h5py.File(spikes_filename, 'r')
-pat_spikes = spikes_file[os.path.join("pattern", "spikes")]
-exc_spikes = spikes_file[os.path.join("exc", "spikes")]
-inh_spikes = spikes_file[os.path.join("inh", "spikes")]
-n_pat_spikes = pat_spikes.shape
-
-analysis_length = min(sim_time, 1000)
-analysis_start = 0
-analysis_end = analysis_start + analysis_length
-plot_spikes(pat_spikes, exc_spikes, inh_spikes, n_exc, dt, sim_time,
-            analysis_start, analysis_end, analysis_length)
-plt.savefig("start_spikes.png", dpi=150)
-
-analysis_length = min(sim_time, 1000)
-analysis_start = sim_time - analysis_length
-analysis_end = analysis_start + analysis_length
-plot_spikes(pat_spikes, exc_spikes, inh_spikes, n_exc, dt, sim_time,
-            analysis_start, analysis_end, analysis_length)
-plt.savefig("start_spikes.png", dpi=150)
-
-plot_weight_histograms(initial_weights, final_weights_0)
-plt.savefig("weights_0_histograms.png", dpi=150)
-
-plot_weight_histograms(initial_weights, final_weights_1)
-plt.savefig("weights_1_histograms.png", dpi=150)
-
-plot_weight_histograms(initial_weights, final_pat2pop_weights)
-plt.savefig("input_weight_histograms.png", dpi=150)
-
-plt.show()
+# spikes_file = h5py.File(spikes_filename, 'r')
+# pat_spikes = spikes_file[os.path.join("pattern", "spikes")]
+# exc_spikes = spikes_file[os.path.join("exc", "spikes")]
+# inh_spikes = spikes_file[os.path.join("inh", "spikes")]
+# n_pat_spikes = pat_spikes.shape
+#
+# analysis_length = min(sim_time, 1000)
+# analysis_start = 0
+# analysis_end = analysis_start + analysis_length
+# plot_spikes(pat_spikes, exc_spikes, inh_spikes, n_exc, dt, sim_time,
+#             analysis_start, analysis_end, analysis_length)
+# plt.savefig("start_spikes.png", dpi=150)
+#
+# analysis_length = min(sim_time, 1000)
+# analysis_start = sim_time - analysis_length
+# analysis_end = analysis_start + analysis_length
+# plot_spikes(pat_spikes, exc_spikes, inh_spikes, n_exc, dt, sim_time,
+#             analysis_start, analysis_end, analysis_length)
+# plt.savefig("start_spikes.png", dpi=150)
+#
+# plot_weight_histograms(initial_weights, final_weights_0)
+# plt.savefig("weights_0_histograms.png", dpi=150)
+#
+# plot_weight_histograms(initial_weights, final_weights_1)
+# plt.savefig("weights_1_histograms.png", dpi=150)
+#
+# plot_weight_histograms(initial_weights, final_pat2pop_weights)
+# plt.savefig("input_weight_histograms.png", dpi=150)
+#
+# plt.show()
