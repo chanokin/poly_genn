@@ -5,18 +5,21 @@ from tqdm import tqdm
 import sys
 
 
-def plot_weight_histograms(initial_weights, final_weights):
+def plot_weight_histograms(initial_weights, final_weights, title=None):
     sys.stdout.write("Plotting weight histograms\n")
     sys.stdout.flush()
 
-    fig, ax = plt.subplots(1, 2, figsize=(17, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(17, 5), sharey=True)
+    plt.suptitle(title)
     ax[0].hist(np.hstack([initial_weights[k] for k in initial_weights]))
     ax[0].set_title("Initial weights")
     ax[0].set_xlabel("Weight value")
+    ax[0].set_ylabel("Number of synapses")
 
     ax[1].hist(np.hstack([final_weights[k] for k in final_weights]))
     ax[1].set_title('Final weights')
-    ax[1].set_xlabel("Number of synapses")
+    ax[1].set_xlabel("Weight value")
+
 
 
 def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
@@ -46,14 +49,15 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
     exc_times = exc_spikes[0,start_exc_idx:end_exc_idx] #* (1. / dt)
     exc_ids = exc_spikes[1,start_exc_idx:end_exc_idx] #* (1. / dt)
 
-    sys.stdout.write("\tInhibitory spikes\n")
-    sys.stdout.flush()
+    if inh_spikes is not None:
+        sys.stdout.write("\tInhibitory spikes\n")
+        sys.stdout.flush()
 
-    start_inh_idx, end_inh_idx = find_limit_indices(inh_spikes, start_time_ms,
-                                                    end_time_ms, points_per_chunk,
-                                                    reverse=use_reverse_search)
-    inh_times = inh_spikes[0,start_inh_idx:end_inh_idx] #* (1. / dt)
-    inh_ids = inh_spikes[1,start_inh_idx:end_inh_idx] #* (1. / dt)
+        start_inh_idx, end_inh_idx = find_limit_indices(inh_spikes, start_time_ms,
+                                                        end_time_ms, points_per_chunk,
+                                                        reverse=use_reverse_search)
+        inh_times = inh_spikes[0,start_inh_idx:end_inh_idx] #* (1. / dt)
+        inh_ids = inh_spikes[1,start_inh_idx:end_inh_idx] #* (1. / dt)
 
     ms_to_s = 1.0/1000.0
     for start_ms in tqdm(np.arange(start_time_ms, end_time_ms, ms_per_plot)):
@@ -63,7 +67,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
         else:
             fig, axs = plt.subplots(1, 1, figsize=(17, 5))
 
-        plt.suptitle(f"from {start_ms * ms_to_s} to {end_ms * ms_to_s} [s]")
+        plt.suptitle(f"from {start_ms * ms_to_s:10.2f} to {end_ms * ms_to_s:10.2f} [s]")
 
         if stim_spikes is not None:
             whr = np.where(np.logical_and(start_ms <= stim_times,
@@ -75,7 +79,7 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
             axs[0].grid()
             axs[0].set_xlim(start_ms, end_ms)
             ticks = axs[0].get_xticks()
-            axs[0].set_xticklabels([f"{x:6.2f}" for x in (ticks * ms_to_s)])
+            axs[0].set_xticklabels([f"{x:.2f}" for x in (ticks * ms_to_s)])
 
         ax = axs[1] if stim_spikes is not None else axs
         whr = np.where(np.logical_and(start_ms <= exc_times,
@@ -85,16 +89,18 @@ def plot_spikes(stim_spikes, exc_spikes, inh_spikes, n_exc, dt,
                 marker='.', markeredgewidth=0.,
                 markersize=3, linestyle='none')
 
-        whr = np.where(np.logical_and(start_ms <= inh_times,
-                                      inh_times < end_ms))
-        ax.plot(inh_times[whr], inh_ids[whr] + n_exc,
-                color='tab:red',
-                marker='.', markeredgewidth=0.,
-                markersize=3, linestyle='none')
+        if inh_spikes is not None:
+            whr = np.where(np.logical_and(start_ms <= inh_times,
+                                          inh_times < end_ms))
+            ax.plot(inh_times[whr], inh_ids[whr] + n_exc,
+                    color='tab:red',
+                    marker='.', markeredgewidth=0.,
+                    markersize=3, linestyle='none')
+
         ax.grid()
         ax.set_xlim(start_ms, end_ms)
         ticks = ax.get_xticks()
-        ax.set_xticklabels([f"{x:6.2f}" for x in (ticks * ms_to_s)])
+        ax.set_xticklabels([f"{x:.2f}" for x in (ticks * ms_to_s)])
 
 
 def plot_rates(stim_spikes, exc_spikes, inh_spikes, n_exc, n_inh, sim_time_ms,
